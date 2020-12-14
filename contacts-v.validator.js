@@ -1,15 +1,13 @@
-//using new modules: 'express-flash' to handle flash messages for error redirects and other situational messages (i.e. success, debugging, warning)
+//using "express-validator" module instead of manual user input validation/sanitization
+//testing for uniqueness/validating multiple fields with "express-validator" is complex so that has been removed
+
 const express = require("express");
 const morgan = require("morgan");
 const { body, validationResult } = require("express-validator");
-const session = require("express-session");
-const store = require("connect-loki");
-const flash = require("express-flash");
 
 const app = express();
-const LokiStore = store(session)
 
-const contactData = [
+let contactData = [
   {
     firstName: "Mike",
     lastName: "Jones",
@@ -48,43 +46,12 @@ const sortContacts = contacts => {
   });
 };
 
-const clone = object => {
-  return JSON.parse(JSON.stringify(object));
-};
-
 app.set("views", "./views");
 app.set("view engine", "pug");
 
 app.use(express.static("public"));
 app.use(express.urlencoded({ extended: false }));
 app.use(morgan("common"));
-app.use(session({
-  cookie: {
-    httpOnly: true,
-    maxAge: 31 * 24 * 60 * 60 * 1000, // 31 days in milliseconds
-    path: "/",
-    secure: false,
-  },
-  name: "launch-school-contacts-manager-session-id",
-  resave: false,
-  saveUninitialized: true,
-  secret: "this is not very secure",
-  store: new LokiStore({}),
-}));
-app.use(flash());
-app.use((req, res, next) => {
-  if (!("contactData" in req.session)) {
-    req.session.contactData = clone(contactData);
-  }
-
-  next();
-});
-
-app.use((req, res, next) => {
-  res.locals.flash = req.session.flash;
-  delete req.session.flash;
-  next();
-});
 
 app.get("/", (req, res) => {
   res.redirect("/contacts");
@@ -92,15 +59,14 @@ app.get("/", (req, res) => {
 
 app.get("/contacts", (req, res) => {
   res.render("contacts", {
-    contacts: sortContacts(req.session.contactData),
+    contacts: sortContacts(contactData),
   });
 });
 
 app.get("/contacts/new", (req, res) => {
   res.render("new-contact");
 });
-
-
+////func used for refactoring validation code:
 const validateName = (name, whichName) => {
   return body(name)
     .trim()
@@ -112,11 +78,32 @@ const validateName = (name, whichName) => {
     .isAlpha()
     .withMessage(`${whichName} name contains invalid characters. The name must be alphabetic.`);
 };
-
 app.post("/contacts/new",
   [
+    ////refactored:
     validateName("firstName", "First"),
     validateName("lastName", "Last"),
+
+    ////refactored above:
+    // body("firstName")
+    //   .trim()
+    //   .isLength({ min: 1 })
+    //   .withMessage("First name is required.")
+    //   .bail()
+    //   .isLength({ max: 25 })
+    //   .withMessage("First name is too long. Maximum length is 25 characters.")
+    //   .isAlpha()
+    //   .withMessage("First name contains invalid characters. The name must be alphabetic."),
+
+    // body("lastName")
+    //   .trim()
+    //   .isLength({ min: 1 })
+    //   .withMessage("Last name is required.")
+    //   .bail()
+    //   .isLength({ max: 25 })
+    //   .withMessage("Last name is too long. Maximum length is 25 characters.")
+    //   .isAlpha()
+    //   .withMessage("Last name contains invalid characters. The name must be alphabetic."),
 
     body("phoneNumber")
       .trim()
@@ -129,15 +116,7 @@ app.post("/contacts/new",
   (req, res, next) => {
     let errors = validationResult(req);
     if (!errors.isEmpty()) {
-      //new code:
-      errors.array().forEach(error => req.flash("error", error.msg));
-      // The next 2 lines are for demonstration purposes only:
-      // req.flash("info", "I'm a doctor, not a bricklayer.");
-      // req.flash("success", "Engage!");
-      //end new code
       res.render("new-contact", {
-        //next new line:
-        flash: req.flash(),
         errorMessages: errors.array().map(error => error.msg),
         firstName: req.body.firstName,
         lastName: req.body.lastName,
@@ -148,13 +127,12 @@ app.post("/contacts/new",
     }
   },
   (req, res) => {
-    req.session.contactData.push({
+    contactData.push({
       firstName: req.body.firstName,
       lastName: req.body.lastName,
       phoneNumber: req.body.phoneNumber,
     });
 
-    req.flash("success", "New contact added to list!");
     res.redirect("/contacts");
   }
 );
