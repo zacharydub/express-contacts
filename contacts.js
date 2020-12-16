@@ -138,7 +138,7 @@ app.post("/contacts/new",
       res.render("new-contact", {
         //next new line:
         flash: req.flash(),
-        errorMessages: errors.array().map(error => error.msg),
+        // errorMessages: errors.array().map(error => error.msg),
         firstName: req.body.firstName,
         lastName: req.body.lastName,
         phoneNumber: req.body.phoneNumber,
@@ -158,6 +158,9 @@ app.post("/contacts/new",
     res.redirect("/contacts");
   }
 );
+
+
+
 
 
 app.listen(3000, "localhost", () => {
